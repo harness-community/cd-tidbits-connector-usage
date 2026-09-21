@@ -1,23 +1,24 @@
 # CI | Tidbits | Connector Usage
 
-> **Bite-sized how-to** | ~10 min setup
+> **Bite-sized how-to** | ~15 min setup
 
 ---
 
 ## What is a connector?
 
-A Harness **connector** is a reusable, scoped credential. Pipelines never embed passwords — they hold a `connectorRef`. At runtime Harness authenticates with the stored secret and (for log lines that match the secret) masks the value.
+A connector is a reusable login. Pipelines never hold passwords — they hold a `connectorRef`. Harness authenticates at runtime and masks secrets in logs.
 
-This tidbit covers the two connector families you hit first in CI:
+Auth methods, scope (`account.` / `org.` / project), and how resolution works: [Connectors](https://developer.harness.io/harness-platform/3.0/in-harness-3.0/connectors).
 
-| Family | What it authenticates | Examples in this repo |
-|---|---|---|
-| **Artifact** | Pull / push container images | Docker Hub, Amazon ECR, Google Container Registry (GCR) |
-| **Infrastructure** | Where the build runs | Kubernetes cluster |
+This tidbit uses three of them to clone [podinfo](https://github.com/harness-community/podinfo), push an image to Docker Hub, and deploy it to EKS:
 
-They are **not interchangeable**. A Kubernetes connector can schedule pods; it cannot log in to ECR. A Docker Hub connector can pull `alpine`; it cannot talk to the Kubernetes API. Stages that run on a cluster *and* pull private images need **both**.
+| Connector | Auth in this tidbit |
+|---|---|
+| **GitHub** | Username + PAT |
+| **Docker Hub** | Username + access token |
+| **AWS** | **Use OIDC** |
 
-The sample pipeline is deliberately tiny — one CI stage, one Run step, public `alpine:3.20` — so you can watch `connectorRef` do the work.
+AWS also supports Access Key, Assume IAM Role on Delegate, IRSA, and Custom (Credential Broker). Those are covered in the same docs. This walkthrough uses OIDC so Harness never stores long-lived AWS keys — each run gets a short-lived token tied to your account/org/project.
 
 ---
 
@@ -25,203 +26,117 @@ The sample pipeline is deliberately tiny — one CI stage, one Run step, public 
 
 Before you start, make sure you have:
 
-- A Harness account with a **Project** (note its org + project identifiers).
-- Harness Cloud build credits (default on Harness-hosted runners). **No delegate and no cluster required** for the default path.
-- Permission to create Connectors (and Secrets, if you add credentials later).
-
-> **Note:** No repo fork is required for the default path. Paste the pipeline YAML into the studio. Fork only if you want the connector samples next to the pipeline in Git.
-
----
-
-## Step 1 — Create a Docker Hub connector
-
-In your Harness project:
-
-1. Go to **Project Settings → Connectors → + New Connector → Docker Registry**.
-2. **Overview:** Name `Docker Hub` (id becomes `dockerhub`).
-3. **Details:**
-   - Provider type: **Docker Hub**
-   - Docker Registry URL: `https://index.docker.io/v2/`
-   - Authentication: **Anonymous**
-4. **Connectivity:** Connect through Harness Platform (Harness Cloud does not need a delegate).
-5. **Test Connection** → it should pass → **Save**.
-
-Anonymous is enough to pull public images. You will add a username + token in Step 4 if you hit Hub rate limits or need a private repo.
-
-YAML equivalent: [`connectors/dockerhub.yaml`](./connectors/dockerhub.yaml).
+- A Harness account with a **Project** (note its org + project identifiers, and your Harness account id).
+- Harness Cloud build credits.
+- A GitHub PAT, a Docker Hub access token, and an EKS cluster you can deploy to.
+- Namespace `podinfo` in the cluster (`kubectl create namespace podinfo` if needed).
 
 ---
 
-## Step 2 — Import the pipeline
+## Step 1 — Secrets and connectors
 
-1. Go to **Pipelines → Create a Pipeline**.
-2. Name it `Connector Usage`, choose **Inline**, open the **YAML** editor.
-3. Paste the contents of [`.harness/connector_usage.yaml`](./.harness/connector_usage.yaml).
-4. Edit the `# REPLACE:` lines: `projectIdentifier`, `orgIdentifier`, and `connectorRef` (use `dockerhub`, or `account.dockerhub` / `org.dockerhub` if you created it at a higher scope).
-5. Save.
+Create two Text secrets: `github_pat` and `dockerhub_token`.
 
----
+Then create three connectors (**Project Settings → Connectors**). Test each one. YAML samples: [`connectors/`](./connectors/).
 
-## Step 3 — Run the pipeline (expect a GREEN build)
-
-Click **Run → Run Pipeline**.
-
-Harness Cloud starts a Linux/Amd64 runner, the Run step authenticates to Docker Hub via your connector, pulls `alpine:3.20`, and prints `/etc/os-release`. Expected: green in under a minute.
-
-```
-Pulled this image through the artifact connector on connectorRef.
-Image: alpine:3.20
----
-NAME="Alpine Linux"
-...
----
-SUCCESS: artifact connector authenticated the pull.
-```
-
-**Green is the correct outcome.** It proves the artifact connector is wired into the step.
+1. **GitHub** (id `github`) — URL `https://github.com`, Account, Username and Token → `github_pat`, API access on.
+2. **Docker Registry** (id `dockerhub`) — Docker Hub, `https://index.docker.io/v2/`, Username and Password → `dockerhub_token`.
+3. **AWS** (id `eks_oidc`) — **Use OIDC**, your IAM role ARN, cluster region. Connect through the Harness Platform (or a Delegate if the API is private).
 
 ---
 
-## Step 4 — Authenticate (optional, but what you do in real pipelines)
+## Step 2 — Environment, infrastructure, and service
 
-Anonymous Hub pulls are rate-limited. Private images always need credentials.
+Paste these into your project and edit every `# REPLACE:` line:
 
-1. Create a Docker Hub **access token** (Docker Hub → Account Settings → Personal access tokens). Store it as a Harness Text Secret, id `dockerhub_token`. Do **not** put the token in Git. See the [Secrets Management tidbit](https://github.com/harness-community/ci-tidbits-secrets-management) if you have not created a secret yet.
-2. Edit the connector: Authentication → **Username and Password**. Username = your Hub user. Password = secret `dockerhub_token`.
-3. Test Connection again, then re-run the pipeline. Same green, now with authenticated pulls.
-
-The YAML shape:
-
-```yaml
-auth:
-  type: UsernamePassword
-  spec:
-    username: <YOUR_DOCKERHUB_USER>
-    passwordRef: dockerhub_token
-```
-
----
-
-## Step 5 — Same pipeline, different registries (ECR / GCR)
-
-`connectorRef` is the only thing that changes. The Run step still pulls an image; Harness uses whichever connector you point at.
-
-### Amazon ECR
-
-Do **not** paste a 12-hour `docker login` token into a Docker Registry connector — it expires twice a day. Create an **AWS** connector ([`connectors/ecr.yaml`](./connectors/ecr.yaml)) with IAM keys (or IRSA / OIDC on a delegate). The IAM principal needs `ecr:GetAuthorizationToken` plus pull/push on the repos you use.
-
-Then either:
-
-- Keep this tidbit's Run step: create a Docker Registry connector whose URL is `https://<account>.dkr.ecr.<region>.amazonaws.com` **or**
-- Graduate to a `BuildAndPushECR` step that takes the **AWS** connector directly — that is the [Docker Build & Push tidbit](https://github.com/harness-community/ci-tidbits-docker-build-push) with the ECR step type.
-
-Swap in the pipeline:
-
-```yaml
-connectorRef: aws_ecr          # or your ECR Docker Registry id
-image: <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/<REPO>:<TAG>
-```
-
-### Google Container Registry (GCR)
-
-GCR is legacy — new images belong in Artifact Registry. The same **GCP** connector covers both ([`connectors/gcr.yaml`](./connectors/gcr.yaml)). Store the service-account JSON as a Harness secret (`gcp_sa_key`); never commit the key file.
-
-```yaml
-connectorRef: gcp_gcr
-image: gcr.io/<PROJECT>/<IMAGE>:<TAG>
-# or Artifact Registry:
-# image: <REGION>-docker.pkg.dev/<PROJECT>/<REPO>/<IMAGE>:<TAG>
-```
-
-The Docker Registry fallback uses URL `https://gcr.io` (or `https://us.gcr.io` / `https://eu.gcr.io` / `https://asia.gcr.io`) with username `_json_key` and `passwordRef` pointing at the same SA JSON secret.
-
----
-
-## Step 6 — Infrastructure connector (Kubernetes)
-
-Harness Cloud (the default in this pipeline) needs **no** cluster connector. To run the *same* steps on your cluster:
-
-1. Install a Harness Delegate in the cluster (or on a host that can reach the API server).
-2. Create a **Kubernetes Cluster** connector ([`connectors/k8s.yaml`](./connectors/k8s.yaml)):
-   - **Inherit from delegate** if the delegate already runs in that cluster (simplest).
-   - **Master URL + service account** if the delegate is elsewhere (required for Docker delegates — they cannot use inherit-from-delegate against `localhost:8080`).
-3. In the stage, delete `platform` + `runtime` and uncomment the `infrastructure` block in [`.harness/connector_usage.yaml`](./.harness/connector_usage.yaml):
-
-```yaml
-infrastructure:
-  type: KubernetesDirect
-  spec:
-    connectorRef: k8s_cluster
-    namespace: harness-delegate-ng
-    automountServiceAccountToken: true
-    os: Linux
-```
-
-The Run step's `connectorRef: dockerhub` stays. Infrastructure connector = where the pod runs. Artifact connector = how the pod pulls `alpine:3.20`.
-
-> **EKS / GKE:** you can use this platform-agnostic K8s connector *or* an AWS / GCP connector for the cluster. CI **build infrastructure** still wants a Kubernetes Cluster connector on the stage. Cloud-provider connectors are for artifacts and cloud APIs.
-
----
-
-## Connector YAML reference
-
-```
-.
-├── .harness/
-│   └── connector_usage.yaml   ← executable pipeline (Cloud + Docker Hub)
-├── connectors/
-│   ├── dockerhub.yaml         ← Docker Registry / Docker Hub
-│   ├── ecr.yaml               ← AWS connector for ECR
-│   ├── gcr.yaml               ← GCP connector for GCR / GAR
-│   └── k8s.yaml               ← Kubernetes cluster connector
-└── README.md
-```
-
-Every `passwordRef` / `secretKeyRef` / `accessKeyRef` is a **secret id**, not a value. Secrets are created in the UI (or the secrets tidbit); connectors only reference them.
-
-### Scope prefixes
-
-Connectors follow the same scope rules as secrets:
-
-| Connector lives at | `connectorRef` |
+| File | Creates |
 |---|---|
-| Project | `dockerhub` |
-| Org | `org.dockerhub` |
-| Account | `account.dockerhub` |
+| [`.harness/environment.yaml`](./.harness/environment.yaml) | Environment `tidbit` |
+| [`.harness/infrastructure.yaml`](./.harness/infrastructure.yaml) | EKS target on `eks_oidc` |
+| [`.harness/service.yaml`](./.harness/service.yaml) | Service `podinfo` (Docker Hub image + `manifests/`) |
 
-Account-level connectors are visible to every org and project; project-level ones are not.
+If you forked this repo, set `repoName` on the service to your fork.
+
+---
+
+## Step 3 — Import the pipeline
+
+1. **Pipelines → Create a Pipeline** → YAML editor.
+2. Paste [`.harness/pipeline.yaml`](./.harness/pipeline.yaml).
+3. Set org, project, and `<YOUR_DOCKERHUB_USER>/podinfo` (same path as the service).
+4. Save.
+
+---
+
+## Step 4 — Run the pipeline (expect a GREEN build)
+
+Click **Run**, keep branch `main`, click **Run Pipeline**.
+
+Build clones `harness-community/podinfo` and pushes to Docker Hub. Deploy rolls that image out to EKS. Expected: green.
+
+```sh
+kubectl -n podinfo get deploy,po,svc
+kubectl -n podinfo port-forward svc/podinfo 9898:9898
+# curl localhost:9898
+```
+
+**Green is the correct outcome.** All three connectors authenticated.
+
+---
+
+## Pipeline YAML reference
+
+[`.harness/pipeline.yaml`](./.harness/pipeline.yaml) — key shape:
+
+```yaml
+properties:
+  ci:
+    codebase: { connectorRef: github, repoName: harness-community/podinfo }
+stages:
+  - stage:
+      name: Build
+      type: CI
+      spec:
+        cloneCodebase: true
+        runtime: { type: Cloud, spec: {} }
+        execution:
+          steps:
+            - step:
+                type: BuildAndPushDockerRegistry
+                spec: { connectorRef: dockerhub, repo: <YOUR_DOCKERHUB_USER>/podinfo }
+  - stage:
+      name: Deploy
+      type: Deployment
+      spec:
+        service: { serviceRef: podinfo }
+        environment:
+          environmentRef: tidbit
+          infrastructureDefinitions: [{ identifier: eks_direct }]
+```
 
 ---
 
 ## Common Issues & Tips
 
-**`docker pull` rate-limit / `toomanyrequests`.** Anonymous Hub is throttled. Add UsernamePassword to the Docker Hub connector (Step 4) or pull from GAR/ECR/the [Harness image registry](https://developer.harness.io/docs/platform/connectors/artifact-repositories/connect-to-harness-container-image-registry-using-docker-connector/).
+**Clone or manifests fail.** Test the GitHub connector; check `github_pat` **Id** and `repoName`.
 
-**`CONNECTOR_NOT_FOUND` / Test Connection fails.** The id in `connectorRef` does not match, or the scope prefix is wrong. Copy the **Id** from the connector list, not the display name. Add `org.` / `account.` when the connector is not in this project.
+**AWS test fails.** OIDC provider URL and role trust must match the connector scope — see the [connectors](https://developer.harness.io/harness-platform/3.0/in-harness-3.0/connectors) page.
 
-**ECR: `unauthorized` after a few hours.** You stored a `get-login-password` token on a Docker Registry connector. Switch to an AWS connector ([`connectors/ecr.yaml`](./connectors/ecr.yaml)).
+**Deploy cannot reach the cluster.** Private API? Use a Delegate. Forbidden? Map the IAM role on the cluster for namespace `podinfo`.
 
-**K8s inherit-from-delegate fails with a Docker delegate.** Docker delegates are not in the cluster's network namespace, so `localhost:8080` is wrong. Use **Specify Master URL and Credentials** ([`connectors/k8s.yaml`](./connectors/k8s.yaml) variant B).
-
-**Stage on K8s cannot pull a private image.** The *infrastructure* connector scheduled the pod; it did not authenticate to the registry. Set `connectorRef` on the Run / BuildAndPush step to an artifact connector.
-
-**Visual / YAML out of sync after a connector edit.** Save the connector, then re-open the pipeline. `connectorRef` is a string; Harness does not rewrite it when you rename a connector — update the pipeline yourself.
+**`ImagePullBackOff`.** Image path must match the push; re-test `dockerhub`.
 
 ---
 
 ## What's next?
 
-- **Push an image, not just pull.** Swap the Run step for `BuildAndPushDockerRegistry` (Hub), `BuildAndPushECR`, or `BuildAndPushGAR` and follow [ci-tidbits-docker-build-push](https://github.com/harness-community/ci-tidbits-docker-build-push).
-- **Put secrets in a Secret Manager first.** [ci-tidbits-secrets-management](https://github.com/harness-community/ci-tidbits-secrets-management) is the companion lesson for `passwordRef`.
-- **Store connectors next to pipelines.** Move `connectors/*.yaml` into `.harness/` in a real repo, set the connector to **Remote** Git storage, and review credential *structure* in PRs (never the secret values).
+- Swap the GitHub PAT for a GitHub App.
+- Add an approval between Build and Deploy.
+- Store `.harness/` as Remote so reviews see connector *structure*, never secret values.
 
 ---
 
 ## Resources
 
-- [Add a Kubernetes cluster connector](https://developer.harness.io/docs/platform/connectors/cloud-providers/add-a-kubernetes-cluster-connector/)
-- [Kubernetes cluster connector settings](https://developer.harness.io/docs/platform/connectors/cloud-providers/ref-cloud-providers/kubernetes-cluster-connector-settings-reference/)
-- [Connect to the Harness container image registry](https://developer.harness.io/docs/platform/connectors/artifact-repositories/connect-to-harness-container-image-registry-using-docker-connector/)
-- [CD artifact sources (Docker Hub, ECR, GCR)](https://developer.harness.io/docs/continuous-delivery/x-platform-cd-features/services/artifact-sources/)
-- [Run step settings (`connectorRef`, `image`)](https://developer.harness.io/docs/continuous-integration/use-ci/run-step-settings/)
-- [Harness Cloud build infrastructure](https://developer.harness.io/docs/continuous-integration/use-ci/set-up-build-infrastructure/use-harness-cloud-build-infrastructure/)
+- [Connectors](https://developer.harness.io/harness-platform/3.0/in-harness-3.0/connectors)
+- [podinfo](https://github.com/harness-community/podinfo)

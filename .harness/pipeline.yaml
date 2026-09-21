@@ -1,0 +1,111 @@
+# Build harness-community/podinfo, push to Docker Hub, deploy to EKS with
+# direct Kubernetes (K8sRollingDeploy). Not GitOps.
+#
+# Create GitHub (PAT), Docker Hub, and AWS OIDC connectors plus
+# service + environment + infrastructure first, then
+# paste this pipeline and replace every # REPLACE: line.
+
+pipeline:
+  name: Connector Usage
+  identifier: tidbit_connector_usage
+  # REPLACE
+  projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
+  # REPLACE
+  orgIdentifier: <YOUR_ORG_IDENTIFIER>
+  tags: {}
+  gitOpsEnabled: false
+  properties:
+    ci:
+      codebase:
+        # REPLACE: GitHub connector (connectors/github.yaml) — PAT clone
+        connectorRef: github
+        repoName: harness-community/podinfo
+        build:
+          type: branch
+          spec:
+            branch: main
+  stages:
+    - stage:
+        name: Build
+        identifier: build
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: BuildAndPushDockerRegistry
+                  name: Build and Push podinfo
+                  identifier: build_and_push_podinfo
+                  timeout: 20m
+                  spec:
+                    connectorRef: dockerhub
+                    # REPLACE: same repo as the service artifact imagePath
+                    repo: <YOUR_DOCKERHUB_USER>/podinfo
+                    tags:
+                      - <+pipeline.sequenceId>
+                      - latest
+                    dockerfile: Dockerfile
+                    context: .
+                    caching: true
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: MarkAsFailure
+    - stage:
+        name: Deploy
+        identifier: deploy
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          gitOpsEnabled: false
+          service:
+            serviceRef: podinfo
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  artifacts:
+                    primary:
+                      primaryArtifactRef: podinfo_image
+                      sources:
+                        - identifier: podinfo_image
+                          type: DockerRegistry
+                          spec:
+                            tag: <+pipeline.sequenceId>
+          environment:
+            environmentRef: tidbit
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: eks_direct
+          execution:
+            steps:
+              - step:
+                  name: Rolling Deploy
+                  identifier: rolling_deploy
+                  type: K8sRollingDeploy
+                  timeout: 10m
+                  spec:
+                    skipDryRun: false
+                    pruningEnabled: false
+            rollbackSteps:
+              - step:
+                  name: Rolling Rollback
+                  identifier: rolling_rollback
+                  type: K8sRollingRollback
+                  timeout: 10m
+                  spec: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback

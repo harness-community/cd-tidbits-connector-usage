@@ -1,32 +1,24 @@
-# Docker Hub artifact connector.
+# Docker Hub artifact connector — used to push the image this pipeline builds
+# and to generate an imagePullSecret for the EKS deploy.
 #
-# Create in Harness: Project Settings → Connectors → New Connector → Docker Registry.
-# Or import this YAML (Connectors → + New Connector → YAML) after replacing the
-# # REPLACE: lines. Never put a password in this file — only secret *references*.
+# Create the Text Secret first (Project Settings → Secrets):
+#   id: dockerhub_token  value: a Docker Hub *access token* (not your password)
 #
-# Scope: project by default. Prefix with org. or account. when you reference it
-# in a pipeline (e.g. connectorRef: account.dockerhub).
+# Then: Project Settings → Connectors → Docker Registry, or import this YAML.
 
 connector:
   name: Docker Hub
   identifier: dockerhub
-  description: Artifact connector for Docker Hub (pull / push)
+  description: Artifact connector — push/pull images on Docker Hub
   type: DockerRegistry
   spec:
     dockerRegistryUrl: https://index.docker.io/v2/
     providerType: DockerHub
-    # Anonymous works for public images (this tidbit pulls alpine:3.20).
-    # Switch to UsernamePassword for private repos or to avoid Hub rate limits.
     auth:
-      type: Anonymous
+      type: UsernamePassword
+      spec:
+        # REPLACE: your Docker Hub username
+        username: <YOUR_DOCKERHUB_USER>
+        # REPLACE: Harness Text Secret id holding a Hub access token
+        passwordRef: dockerhub_token
     executeOnDelegate: false
-
-# --- Authenticated variant (uncomment + delete Anonymous above) ---
-#     auth:
-#       type: UsernamePassword
-#       spec:
-#         # REPLACE: your Docker Hub username
-#         username: <YOUR_DOCKERHUB_USER>
-#         # REPLACE: Harness Text Secret that holds a Hub access token (not your
-#         # account password). Create it first: Project Settings → Secrets.
-#         passwordRef: dockerhub_token

@@ -1,0 +1,41 @@
+service:
+  name: podinfo
+  identifier: podinfo
+  # REPLACE
+  orgIdentifier: <YOUR_ORG_IDENTIFIER>
+  # REPLACE
+  projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
+  description: podinfo built from harness-community/podinfo, image on Docker Hub
+  tags: {}
+  serviceDefinition:
+    type: Kubernetes
+    spec:
+      artifacts:
+        primary:
+          primaryArtifactRef: podinfo_image
+          sources:
+            - identifier: podinfo_image
+              type: DockerRegistry
+              spec:
+                connectorRef: dockerhub
+                # REPLACE: Docker Hub repo you can push to (user/podinfo)
+                imagePath: <YOUR_DOCKERHUB_USER>/podinfo
+                tag: <+input>
+      manifests:
+        - manifest:
+            identifier: podinfo_manifests
+            type: K8sManifest
+            spec:
+              skipResourceVersioning: false
+              enableDeclarativeRollback: false
+              store:
+                type: Github
+                spec:
+                  # REPLACE: GitHub connector (connectors/github.yaml)
+                  connectorRef: github
+                  # REPLACE: this tidbit repo (or your fork) after it is pushed
+                  repoName: harness-community/ci-tidbits-connector-usage
+                  gitFetchType: Branch
+                  branch: main
+                  paths:
+                    - manifests/

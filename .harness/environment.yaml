@@ -1,0 +1,10 @@
+environment:
+  name: Tidbit
+  identifier: tidbit
+  # REPLACE
+  orgIdentifier: <YOUR_ORG_IDENTIFIER>
+  # REPLACE
+  projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
+  type: PreProduction
+  description: Pre-production target for the connector-usage tidbit
+  tags: {}
