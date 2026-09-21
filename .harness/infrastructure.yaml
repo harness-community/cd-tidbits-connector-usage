@@ -9,7 +9,6 @@ infrastructureDefinition:
   deploymentType: Kubernetes
   type: KubernetesDirect
   spec:
-    # Kubernetes cluster connector (Delegate / InheritFromDelegate) — not OIDC
     connectorRef: k8sconnector
     namespace: podinfo
     releaseName: release-<+INFRA_KEY_SHORT_ID>

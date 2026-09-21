@@ -16,7 +16,7 @@ This tidbit uses three of them to clone [podinfo](https://github.com/harness-com
 |---|---|
 | **GitHub** (`githubconnector`) | Username + PAT |
 | **Docker Hub** (`dockerhubconnector`) | Username + access token |
-| **Kubernetes** (`k8sconnector`) | Delegate (`InheritFromDelegate`) — not OIDC |
+| **Kubernetes** (`k8sconnector`) | Delegate (`InheritFromDelegate`) |
 
 ---
 
@@ -27,7 +27,7 @@ Before you start, make sure you have:
 - A Harness account with a **Project** (note its org + project identifiers).
 - Harness Cloud build credits.
 - A GitHub PAT, a Docker Hub access token, and a Kubernetes cluster you can deploy to.
-- A Harness **Delegate installed in that cluster**. The Kubernetes connector inherits credentials from the Delegate; it does not use OIDC.
+- A Harness **Delegate installed in that cluster**. The Kubernetes connector inherits credentials from the Delegate.
 - Namespace `podinfo` in the cluster (`kubectl create namespace podinfo` if needed).
 
 ---
@@ -40,7 +40,7 @@ Then create three connectors (**Project Settings → Connectors**). Test each on
 
 1. **GitHub** (`github-connector` / `githubconnector`) — **Repo**, URL `https://github.com/harness-community/podinfo`, Username and Token → `github-pat`.
 2. **Docker Registry** (`dockerhub-connector` / `dockerhubconnector`) — Docker Hub, `https://index.docker.io/v2/`, Username and Password → `dockerhub-pat`.
-3. **Kubernetes Cluster** (`k8s-connector` / `k8sconnector`) — **Use the credentials of a Delegate** (`InheritFromDelegate`). Set `delegateSelectors` to tags on that Delegate. Not OIDC.
+3. **Kubernetes Cluster** (`k8s-connector` / `k8sconnector`) — **Use the credentials of a Delegate** (`InheritFromDelegate`). Set `delegateSelectors` to tags on that Delegate.
 
 ---
 
@@ -119,7 +119,7 @@ stages:
 
 **Clone or Kustomize fetch fails.** Test the GitHub connector; check secret id `github-pat`. The connector is Repo-scoped to `harness-community/podinfo`. Manifests are on `master` under `kustomize/`.
 
-**Kubernetes test fails.** Confirm the Delegate is running in the cluster and the connector `delegateSelectors` match. This connector does not use OIDC.
+**Kubernetes test fails.** Confirm the Delegate is running in the cluster and the connector `delegateSelectors` match.
 
 **Deploy cannot apply resources.** The Delegate service account needs permission in namespace `podinfo`.
 

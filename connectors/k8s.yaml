@@ -1,5 +1,5 @@
 # Kubernetes cluster connector — used by KubernetesDirect infrastructure.
-# Auth is InheritFromDelegate only (no OIDC, no kubeconfig).
+# Auth is InheritFromDelegate.
 #
 # Typical setup:
 #   1. Install a Harness Delegate in the target cluster
