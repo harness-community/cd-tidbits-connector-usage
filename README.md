@@ -1,4 +1,4 @@
-# CI | Tidbits | Connector Usage
+# CD | Tidbits | Connector Usage
 
 > **Bite-sized how-to** | ~15 min setup
 
