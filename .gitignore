@@ -1,0 +1,10 @@
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.p12
+kubeconfig
+.idea/
+.vscode/
+*.swp
