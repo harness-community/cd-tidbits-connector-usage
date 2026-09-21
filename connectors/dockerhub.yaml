@@ -1,15 +1,18 @@
-# Docker Hub artifact connector — used to push the image this pipeline builds
-# and to generate an imagePullSecret for the EKS deploy.
+# Docker Hub connector — push the image this pipeline builds and
+# generate an imagePullSecret for the Kubernetes deploy.
+# Create the Text Secret first:
+#   id: dockerhub-pat  value: a Docker Hub access token (not your password)
 #
-# Create the Text Secret first (Project Settings → Secrets):
-#   id: dockerhub_token  value: a Docker Hub *access token* (not your password)
-#
-# Then: Project Settings → Connectors → Docker Registry, or import this YAML.
+# Then: Project Settings → Connectors → Docker Registry.
 
 connector:
-  name: Docker Hub
-  identifier: dockerhub
-  description: Artifact connector — push/pull images on Docker Hub
+  name: dockerhub-connector
+  identifier: dockerhubconnector
+  description: ""
+  # REPLACE
+  orgIdentifier: <YOUR_ORG_IDENTIFIER>
+  # REPLACE
+  projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
   type: DockerRegistry
   spec:
     dockerRegistryUrl: https://index.docker.io/v2/
@@ -19,6 +22,7 @@ connector:
       spec:
         # REPLACE: your Docker Hub username
         username: <YOUR_DOCKERHUB_USER>
-        # REPLACE: Harness Text Secret id holding a Hub access token
-        passwordRef: dockerhub_token
+        passwordRef: dockerhub-pat
     executeOnDelegate: false
+    proxy: false
+    ignoreTestConnection: false

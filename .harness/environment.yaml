@@ -1,10 +1,9 @@
 environment:
-  name: Tidbit
-  identifier: tidbit
+  name: podinfo-env
+  identifier: podinfoenv
+  tags: {}
+  type: PreProduction
   # REPLACE
   orgIdentifier: <YOUR_ORG_IDENTIFIER>
   # REPLACE
   projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
-  type: PreProduction
-  description: Pre-production target for the connector-usage tidbit
-  tags: {}

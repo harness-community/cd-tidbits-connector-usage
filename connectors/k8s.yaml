@@ -1,0 +1,26 @@
+# Kubernetes cluster connector — used by KubernetesDirect infrastructure.
+# Auth is InheritFromDelegate only (no OIDC, no kubeconfig).
+#
+# Typical setup:
+#   1. Install a Harness Delegate in the target cluster
+#   2. Grant the Delegate service account deploy rights in namespace podinfo
+#   3. Create this connector and select that Delegate (or its tags)
+#
+# Then: Project Settings → Connectors → Kubernetes Cluster.
+
+connector:
+  name: k8s-connector
+  identifier: k8sconnector
+  description: ""
+  # REPLACE
+  orgIdentifier: <YOUR_ORG_IDENTIFIER>
+  # REPLACE
+  projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
+  type: K8sCluster
+  spec:
+    credential:
+      type: InheritFromDelegate
+    # REPLACE: tags that match your Delegate
+    delegateSelectors:
+      - <YOUR_DELEGATE_SELECTOR>
+    ignoreTestConnection: false

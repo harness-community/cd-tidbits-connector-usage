@@ -1,21 +1,16 @@
 infrastructureDefinition:
-  name: EKS Direct
-  identifier: eks_direct
+  name: podinfo-infra
+  identifier: podinfoinfra
   # REPLACE
   orgIdentifier: <YOUR_ORG_IDENTIFIER>
   # REPLACE
   projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
-  description: Direct Kubernetes on EKS via the AWS OIDC connector (not GitOps)
-  tags: {}
-  environmentRef: tidbit
+  environmentRef: podinfoenv
   deploymentType: Kubernetes
-  type: KubernetesAws
+  type: KubernetesDirect
   spec:
-    # REPLACE: AWS OIDC connector (connectors/eks_oidc.yaml)
-    connectorRef: eks_oidc
-    # REPLACE: <region>/<cluster-name>, e.g. us-east-1/my-eks
-    cluster: <YOUR_AWS_REGION>/<YOUR_EKS_CLUSTER>
-    # REPLACE: existing namespace the OIDC role can deploy into
+    # Kubernetes cluster connector (Delegate / InheritFromDelegate) — not OIDC
+    connectorRef: k8sconnector
     namespace: podinfo
     releaseName: release-<+INFRA_KEY_SHORT_ID>
   allowSimultaneousDeployments: false

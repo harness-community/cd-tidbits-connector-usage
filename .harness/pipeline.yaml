@@ -1,13 +1,13 @@
-# Build harness-community/podinfo, push to Docker Hub, deploy to EKS with
-# direct Kubernetes (K8sRollingDeploy). Not GitOps.
+# Build harness-community/podinfo, push to Docker Hub, deploy with
+# KubernetesDirect (K8sRollingDeploy). Not GitOps.
 #
-# Create GitHub (PAT), Docker Hub, and AWS OIDC connectors plus
+# Create GitHub, Docker Hub, and Kubernetes connectors plus
 # service + environment + infrastructure first, then
 # paste this pipeline and replace every # REPLACE: line.
 
 pipeline:
-  name: Connector Usage
-  identifier: tidbit_connector_usage
+  name: podinfo-build-push-deploy
+  identifier: podinfobuildpushdeploy
   # REPLACE
   projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
   # REPLACE
@@ -17,13 +17,12 @@ pipeline:
   properties:
     ci:
       codebase:
-        # REPLACE: GitHub connector (connectors/github.yaml) — PAT clone
-        connectorRef: github
+        connectorRef: githubconnector
         repoName: harness-community/podinfo
         build:
           type: branch
           spec:
-            branch: main
+            branch: master
   stages:
     - stage:
         name: Build
@@ -45,7 +44,7 @@ pipeline:
                   identifier: build_and_push_podinfo
                   timeout: 20m
                   spec:
-                    connectorRef: dockerhub
+                    connectorRef: dockerhubconnector
                     # REPLACE: same repo as the service artifact imagePath
                     repo: <YOUR_DOCKERHUB_USER>/podinfo
                     tags:
@@ -82,10 +81,10 @@ pipeline:
                           spec:
                             tag: <+pipeline.sequenceId>
           environment:
-            environmentRef: tidbit
+            environmentRef: podinfoenv
             deployToAll: false
             infrastructureDefinitions:
-              - identifier: eks_direct
+              - identifier: podinfoinfra
           execution:
             steps:
               - step:

@@ -1,19 +1,20 @@
-# GitHub connector — clone source (podinfo) and fetch deploy manifests.
-#
-# Create the Text Secret first: id github_pat, value = a GitHub PAT
-# (repo scope for private repos; public_repo is enough for public clones).
+# GitHub connector — clone podinfo and fetch Kustomize manifests.
+# Repo-scoped (not Account). Create the Text Secret first:
+#   id: github-pat  value: a GitHub PAT
 #
 # Then: Project Settings → Connectors → GitHub.
 
 connector:
-  name: GitHub
-  identifier: github
-  description: Code connector — clone repos with a GitHub PAT
+  name: github-connector
+  identifier: githubconnector
+  description: ""
+  # REPLACE
+  orgIdentifier: <YOUR_ORG_IDENTIFIER>
+  # REPLACE
+  projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
   type: Github
   spec:
-    # Account URL so one connector can clone podinfo and this tidbit repo
-    url: https://github.com
-    type: Account
+    url: https://github.com/harness-community/podinfo
     authentication:
       type: Http
       spec:
@@ -21,10 +22,8 @@ connector:
         spec:
           # REPLACE: GitHub username that owns the PAT
           username: <YOUR_GITHUB_USER>
-          # REPLACE: Harness Text Secret id holding the PAT
-          tokenRef: github_pat
-    apiAccess:
-      type: Token
-      spec:
-        tokenRef: github_pat
+          tokenRef: github-pat
     executeOnDelegate: false
+    proxy: false
+    ignoreTestConnection: false
+    type: Repo

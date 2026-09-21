@@ -17,25 +17,21 @@ service:
             - identifier: podinfo_image
               type: DockerRegistry
               spec:
-                connectorRef: dockerhub
+                connectorRef: dockerhubconnector
                 # REPLACE: Docker Hub repo you can push to (user/podinfo)
                 imagePath: <YOUR_DOCKERHUB_USER>/podinfo
                 tag: <+input>
       manifests:
         - manifest:
             identifier: podinfo_manifests
-            type: K8sManifest
+            type: Kustomize
             spec:
               skipResourceVersioning: false
-              enableDeclarativeRollback: false
               store:
                 type: Github
                 spec:
-                  # REPLACE: GitHub connector (connectors/github.yaml)
-                  connectorRef: github
-                  # REPLACE: this tidbit repo (or your fork) after it is pushed
-                  repoName: harness-community/ci-tidbits-connector-usage
+                  connectorRef: githubconnector
+                  repoName: harness-community/podinfo
                   gitFetchType: Branch
-                  branch: main
-                  paths:
-                    - manifests/
+                  branch: master
+                  folderPath: kustomize
